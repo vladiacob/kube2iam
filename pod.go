@@ -73,8 +73,7 @@ func (p *PodHandler) OnDelete(obj interface{}) {
 func isPodActive(p *v1.Pod) bool {
 	return p.Status.PodIP != "" &&
 		v1.PodSucceeded != p.Status.Phase &&
-		v1.PodFailed != p.Status.Phase &&
-		p.DeletionTimestamp == nil
+		v1.PodFailed != p.Status.Phase
 }
 
 // PodIPIndexFunc maps a given Pod to it's IP for caching.

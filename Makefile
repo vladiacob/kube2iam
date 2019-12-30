@@ -75,6 +75,8 @@ check-all:
 		--linter='vet:govet --no-recurse:PATH:LINE:MESSAGE' --dupl-threshold=50
 		--dupl-threshold=50
 
+travis-checks: build test-race check bench-race
+
 watch:
 	CompileDaemon -color=true -build "make test"
 
@@ -90,10 +92,12 @@ docker-dev: docker
 
 release: check test docker
 	docker push $(IMAGE_NAME):$(GIT_HASH)
-	docker tag $(IMAGE_NAME):$(GIT_HASH) $(IMAGE_NAME):latest
-	docker push $(IMAGE_NAME):latest
 	docker tag $(IMAGE_NAME):$(GIT_HASH) $(IMAGE_NAME):$(REPO_VERSION)
 	docker push $(IMAGE_NAME):$(REPO_VERSION)
+ifeq (, $(findstring -rc, $(REPO_VERSION)))
+	docker tag $(IMAGE_NAME):$(GIT_HASH) $(IMAGE_NAME):latest
+	docker push $(IMAGE_NAME):latest
+endif
 
 version:
 	@echo $(REPO_VERSION)
@@ -103,4 +107,4 @@ clean:
 	-docker rm $(docker ps -a -f 'status=exited' -q)
 	-docker rmi $(docker images -f 'dangling=true' -q)
 
-.PHONY: build
+.PHONY: build version

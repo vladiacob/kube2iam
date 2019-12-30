@@ -1,5 +1,5 @@
 [![Build Status](https://travis-ci.org/jtblin/kube2iam.svg?branch=master)](https://travis-ci.org/jtblin/kube2iam)
-[![GitHub tag](https://img.shields.io/github/tag/jtblin/kube2iam.svg?maxAge=86400)](https://github.com/atlassian/gostatsd)
+[![GitHub tag](https://img.shields.io/github/tag/jtblin/kube2iam.svg?maxAge=86400)](https://github.com/jtblin/kube2iam)
 [![Docker Pulls](https://img.shields.io/docker/pulls/jtblin/kube2iam.svg)](https://hub.docker.com/r/jtblin/kube2iam/)
 [![Go Report Card](https://goreportcard.com/badge/github.com/jtblin/kube2iam)](https://goreportcard.com/report/github.com/jtblin/kube2iam)
 [![license](https://img.shields.io/github/license/jtblin/kube2iam.svg)](https://github.com/jtblin/kube2iam/blob/master/LICENSE)
@@ -137,13 +137,15 @@ iptables \
 This rule can be added automatically by setting `--iptables=true`, setting the `HOST_IP` environment
 variable, and running the container in a privileged security context.
 
+**Warning**: It is possible that other pods are started on an instance before kube2iam has started. Using `--iptables=true` (instead of applying the rule before starting the kubelet) **could give those pods the opportunity to access the real EC2 metadata API, assume the role of the EC2 instance and thereby have all permissions the instance role has** (including assuming potential other roles). Use with care if you don't trust the users of your kubernetes cluster or if you are running pods (that could be exploited) that have permissions to create other pods (e.g. controllers / operators).
+
 Note that the interface `--in-interface` above or using the `--host-interface` cli flag may be
 different than `docker0` depending on which virtual network you use e.g.
 
-* for Calico, use `cali+` (the interface name is something like cali1234567890)(It is possible for [EKS to use Calico also](https://docs.aws.amazon.com/eks/latest/userguide/calico.html))
+* for Calico, use `cali+` (the interface name is something like cali1234567890)
 * for kops (on kubenet), use `cbr0`
 * for CNI, use `cni0`
-* for [EKS without calico](https://docs.aws.amazon.com/eks/latest/userguide/what-is-eks.html)/[amazon-vpc-cni-k8s](https://github.com/aws/amazon-vpc-cni-k8s), use `eni+`. (Each pod gets an interface like `eni4c0e15dfb05`)
+* for [EKS](https://docs.aws.amazon.com/eks/latest/userguide/what-is-eks.html)/[amazon-vpc-cni-k8s](https://github.com/aws/amazon-vpc-cni-k8s), even with calico installed uses `eni+`. (Each pod gets an interface like `eni4c0e15dfb05`)
 * for weave use `weave`
 * for flannel use `cni0`
 * for [kube-router](https://github.com/cloudnativelabs/kube-router) use `kube-bridge`
@@ -195,6 +197,7 @@ spec:
 ### kubernetes annotation
 
 Add an `iam.amazonaws.com/role` annotation to your pods with the role that you want to assume for this pod.
+The optional `iam.amazonaws.com/external-id` will allow the use of an ExternalId as part of the assume role
 
 ```yaml
 apiVersion: v1
@@ -205,6 +208,7 @@ metadata:
     name: aws-cli
   annotations:
     iam.amazonaws.com/role: role-arn
+    iam.amazonaws.com/external-id: external-id
 spec:
   containers:
   - image: fstab/aws-cli
@@ -249,7 +253,7 @@ spec:
 Example for a `CronJob`:
 
 ```yaml
-apiVersion: batch/v1
+apiVersion: batch/v1beta1
 kind: CronJob
 metadata:
   name: my-cronjob
@@ -559,6 +563,7 @@ Usage of kube2iam:
       --host-interface string                 Host interface for proxying AWS metadata (default "docker0")
       --host-ip string                        IP address of host
       --iam-role-key string                   Pod annotation key used to retrieve the IAM role (default "iam.amazonaws.com/role")
+      --iam-external-id string                Pod annotation key used to retrieve the IAM ExternalId (default "iam.amazonaws.com/external-id")
       --insecure                              Kubernetes server should be accessed without verifying the TLS. Testing only
       --iptables                              Add iptables rule (also requires --host-ip)
       --log-format string                     Log format (text/json) (default "text")
@@ -566,6 +571,7 @@ Usage of kube2iam:
       --metadata-addr string                  Address for the ec2 metadata (default "169.254.169.254")
       --metrics-port string                   Metrics server http port (default: same as kube2iam server port) (default "8181")
       --namespace-key string                  Namespace annotation key used to retrieve the IAM roles allowed (value in annotation should be json array) (default "iam.amazonaws.com/allowed-roles")
+      --cache-resync-period                   Refresh interval for pod and namespace caches
       --namespace-restriction-format string   Namespace Restriction Format (glob/regexp) (default "glob")
       --namespace-restrictions                Enable namespace restrictions
       --node string                           Name of the node where kube2iam is running

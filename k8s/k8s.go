@@ -7,7 +7,7 @@ import (
 	"github.com/jtblin/kube2iam"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/pkg/api/v1"
+	v1 "k8s.io/client-go/pkg/api/v1"
 	selector "k8s.io/client-go/pkg/fields"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
@@ -16,8 +16,6 @@ import (
 const (
 	podIPIndexName     = "byPodIP"
 	namespaceIndexName = "byName"
-	// Resync period for the kube controller loop.
-	resyncPeriod = 30 * time.Minute
 )
 
 // Client represents a kubernetes client.
@@ -40,7 +38,7 @@ func (k8s *Client) createPodLW() *cache.ListWatch {
 }
 
 // WatchForPods watches for pod changes.
-func (k8s *Client) WatchForPods(podEventLogger cache.ResourceEventHandler) cache.InformerSynced {
+func (k8s *Client) WatchForPods(podEventLogger cache.ResourceEventHandler, resyncPeriod time.Duration) cache.InformerSynced {
 	k8s.podIndexer, k8s.podController = cache.NewIndexerInformer(
 		k8s.createPodLW(),
 		&v1.Pod{},
@@ -58,7 +56,7 @@ func (k8s *Client) createNamespaceLW() *cache.ListWatch {
 }
 
 // WatchForNamespaces watches for namespaces changes.
-func (k8s *Client) WatchForNamespaces(nsEventLogger cache.ResourceEventHandler) cache.InformerSynced {
+func (k8s *Client) WatchForNamespaces(nsEventLogger cache.ResourceEventHandler, resyncPeriod time.Duration) cache.InformerSynced {
 	k8s.namespaceIndexer, k8s.namespaceController = cache.NewIndexerInformer(
 		k8s.createNamespaceLW(),
 		&v1.Namespace{},
@@ -93,7 +91,7 @@ func (k8s *Client) PodByIP(IP string) (*v1.Pod, error) {
 	}
 
 	if len(pods) == 0 {
-		return nil, fmt.Errorf("Pod with specificed IP not found")
+		return nil, fmt.Errorf("pod with specificed IP not found")
 	}
 
 	if len(pods) == 1 {
@@ -117,7 +115,7 @@ func (k8s *Client) NamespaceByName(namespaceName string) (*v1.Namespace, error) 
 	}
 
 	if len(namespace) == 0 {
-		return nil, fmt.Errorf("Namespace was not found")
+		return nil, fmt.Errorf("namespace was not found")
 	}
 
 	return namespace[0].(*v1.Namespace), nil
