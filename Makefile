@@ -11,7 +11,7 @@ GOBUILD_VERSION_ARGS := -ldflags "-s -X $(VERSION_VAR)=$(REPO_VERSION) -X $(GIT_
 # useful for other docker repos
 DOCKER_REPO ?= jtblin
 IMAGE_NAME := $(DOCKER_REPO)/$(BINARY_NAME)
-ARCH ?= darwin
+ARCH ?= linux
 METALINTER_CONCURRENCY ?= 4
 METALINTER_DEADLINE ?= 180
 # useful for passing --build-arg http_proxy :)

@@ -33,6 +33,7 @@ func addFlags(s *server.Server, fs *pflag.FlagSet) {
 	fs.BoolVar(&s.NamespaceRestriction, "namespace-restrictions", false, "Enable namespace restrictions")
 	fs.StringVar(&s.NamespaceRestrictionFormat, "namespace-restriction-format", s.NamespaceRestrictionFormat, "Namespace Restriction Format (glob/regexp)")
 	fs.StringVar(&s.NamespaceKey, "namespace-key", s.NamespaceKey, "Namespace annotation key used to retrieve the IAM roles allowed (value in annotation should be json array)")
+	fs.StringVar(&s.NamespaceIAMRoleKey, "namespace-iam-role-key", s.NamespaceIAMRoleKey, "")
 	fs.DurationVar(&s.CacheResyncPeriod, "cache-resync-period", s.CacheResyncPeriod, "Kubernetes caches resync period")
 	fs.StringVar(&s.HostIP, "host-ip", s.HostIP, "IP address of host")
 	fs.StringVar(&s.NodeName, "node", s.NodeName, "Name of the node where kube2iam is running")
@@ -43,6 +44,8 @@ func addFlags(s *server.Server, fs *pflag.FlagSet) {
 	fs.BoolVar(&s.UseRegionalStsEndpoint, "use-regional-sts-endpoint", false, "use the regional sts endpoint if AWS_REGION is set")
 	fs.BoolVar(&s.Verbose, "verbose", false, "Verbose")
 	fs.BoolVar(&s.Version, "version", false, "Print the version and exits")
+	fs.BoolVar(&s.DisableSensitiveMetadata, "disable-sensitive-metadata", false, "Make some sensitive metadata paths return empty strings")
+	fs.BoolVar(&s.DisableUserData, "disable-user-data", false, "Make the user-data endpoint return an empty string instead of the host's user-data")
 }
 
 func main() {

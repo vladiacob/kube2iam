@@ -36,6 +36,7 @@ const (
 	defaultMaxInterval                = 1 * time.Second
 	defaultMetadataAddress            = "169.254.169.254"
 	defaultNamespaceKey               = "iam.amazonaws.com/allowed-roles"
+	defaultNamespaceIAMRoleKey        = "iam.amazonaws.com/role"
 	defaultCacheResyncPeriod          = 30 * time.Minute
 	defaultNamespaceRestrictionFormat = "glob"
 	healthcheckInterval               = 30 * time.Second
@@ -61,6 +62,7 @@ type Server struct {
 	HostIP                     string
 	NodeName                   string
 	NamespaceKey               string
+	NamespaceIAMRoleKey        string
 	CacheResyncPeriod          time.Duration
 	LogLevel                   string
 	LogFormat                  string
@@ -74,6 +76,8 @@ type Server struct {
 	NamespaceRestriction       bool
 	Verbose                    bool
 	Version                    bool
+	DisableSensitiveMetadata   bool
+	DisableUserData            bool
 	iam                        *iam.Client
 	k8s                        *k8s.Client
 	roleMapper                 *mappings.RoleMapper
@@ -292,6 +296,10 @@ func (s *Server) debugStoreHandler(logger *log.Entry, w http.ResponseWriter, r *
 	write(logger, w, string(o))
 }
 
+func (s *Server) emptyResponseHandler(logger *log.Entry, w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Server", "EC2ws")
+}
+
 func (s *Server) securityCredentialsHandler(logger *log.Entry, w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Server", "EC2ws")
 	remoteIP := parseRemoteAddr(r.RemoteAddr)
@@ -376,7 +384,7 @@ func (s *Server) Run(host, token, nodeName string, insecure bool) error {
 	s.k8s = k
 	s.iam = iam.NewClient(s.BaseRoleARN, s.UseRegionalStsEndpoint)
 	log.Debugln("Caches have been synced.  Proceeding with server.")
-	s.roleMapper = mappings.NewRoleMapper(s.IAMRoleKey, s.IAMExternalID, s.DefaultIAMRole, s.NamespaceRestriction, s.NamespaceKey, s.iam, s.k8s, s.NamespaceRestrictionFormat)
+	s.roleMapper = mappings.NewRoleMapper(s.IAMRoleKey, s.IAMExternalID, s.DefaultIAMRole, s.NamespaceRestriction, s.NamespaceKey, s.iam, s.k8s, s.NamespaceRestrictionFormat, s.NamespaceIAMRoleKey)
 	log.Debugf("Starting pod and namespace sync jobs with %s resync period", s.CacheResyncPeriod.String())
 	podSynched := s.k8s.WatchForPods(kube2iam.NewPodHandler(s.IAMRoleKey), s.CacheResyncPeriod)
 	namespaceSynched := s.k8s.WatchForNamespaces(kube2iam.NewNamespaceHandler(s.NamespaceKey), s.CacheResyncPeriod)
@@ -401,6 +409,25 @@ func (s *Server) Run(host, token, nodeName string, insecure bool) error {
 	if s.Debug {
 		// This is a potential security risk if enabled in some clusters, hence the flag
 		r.Handle("/debug/store", newAppHandler("debugStoreHandler", s.debugStoreHandler))
+	}
+
+	emptyResponseHandler := newAppHandler("emptyResponseHandler", s.emptyResponseHandler)
+	if s.DisableUserData {
+		r.Handle("/{version}/user-data", emptyResponseHandler)
+		r.Handle("/{version}/user-data/{path:.*}", emptyResponseHandler)
+	}
+	if s.DisableSensitiveMetadata {
+		// permit instance identity document, but not its signatures
+		r.Handle("/{version}/dynamic/instance-identity/document", newAppHandler("reserveProxyHandler", s.reverseProxyHandler))
+		r.Handle("/{version}/dynamic/instance-identity/{path:.+}", emptyResponseHandler)
+		// hide public keys, disk configuration, security group & iam information
+		r.Handle("/{version}/meta-data/public-keys/{path:.*}", emptyResponseHandler)
+		r.Handle("/{version}/meta-data/block-device-mapping/{path:.*}", emptyResponseHandler)
+		r.Handle("/{version}/meta-data/network/{path:.*}", emptyResponseHandler)
+		r.Handle("/{version}/meta-data/security-groups", emptyResponseHandler)
+		r.Handle("/{version}/meta-data/security-groups/{path:.*}", emptyResponseHandler)
+		r.Handle("/{version}/meta-data/iam/info", emptyResponseHandler)
+		r.Handle("/{version}/meta-data/iam/info/{path:.*}", emptyResponseHandler)
 	}
 	r.Handle("/{version}/meta-data/iam/security-credentials", securityHandler)
 	r.Handle("/{version}/meta-data/iam/security-credentials/", securityHandler)
@@ -438,6 +465,7 @@ func NewServer() *Server {
 		LogFormat:                  defaultLogFormat,
 		MetadataAddress:            defaultMetadataAddress,
 		NamespaceKey:               defaultNamespaceKey,
+		NamespaceIAMRoleKey:        defaultNamespaceIAMRoleKey,
 		CacheResyncPeriod:          defaultCacheResyncPeriod,
 		NamespaceRestrictionFormat: defaultNamespaceRestrictionFormat,
 		HealthcheckFailReason:      "Healthcheck not yet performed",
