@@ -297,7 +297,7 @@ func (s *Server) debugStoreHandler(logger *log.Entry, w http.ResponseWriter, r *
 }
 
 func (s *Server) emptyResponseHandler(logger *log.Entry, w http.ResponseWriter, r *http.Request) {
-       w.Header().Set("Server", "EC2ws")
+	w.Header().Set("Server", "EC2ws")
 }
 
 func (s *Server) securityCredentialsHandler(logger *log.Entry, w http.ResponseWriter, r *http.Request) {
